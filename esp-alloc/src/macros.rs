@@ -11,7 +11,7 @@ macro_rules! heap_allocator {
         static mut HEAP: core::mem::MaybeUninit<[u8; $size]> = core::mem::MaybeUninit::uninit();
 
         unsafe {
-            ALLOCATOR.init(HEAP.as_mut_ptr() as *mut u8, $size);
+            ALLOCATOR.init_global(HEAP.as_mut_ptr() as *mut u8, $size);
         }
     }};
 }

@@ -63,9 +63,12 @@ use core::{
 use critical_section::Mutex;
 use linked_list_allocator::Heap;
 
-pub struct EspHeap {
-    heap: Mutex<RefCell<Heap>>,
+struct EspHeapInner {
+    heap: Heap,
+    is_global: bool,
 }
+
+pub struct EspHeap(Mutex<RefCell<EspHeapInner>>);
 
 impl EspHeap {
     /// Crate a new UNINITIALIZED heap allocator
@@ -74,9 +77,10 @@ impl EspHeap {
     /// [`init`](struct.EspHeap.html#method.init) method before using the
     /// allocator.
     pub const fn empty() -> EspHeap {
-        EspHeap {
-            heap: Mutex::new(RefCell::new(Heap::empty())),
-        }
+        EspHeap(Mutex::new(RefCell::new(EspHeapInner {
+            heap: Heap::empty(),
+            is_global: false,
+        })))
     }
 
     /// Initializes the heap
@@ -105,26 +109,52 @@ impl EspHeap {
     /// - This function must be called exactly ONCE.
     /// - `size > 0`.
     pub unsafe fn init(&self, heap_bottom: *mut u8, size: usize) {
-        critical_section::with(|cs| self.heap.borrow(cs).borrow_mut().init(heap_bottom, size));
+        self.init_inner(heap_bottom, size, false);
+    }
+
+    /// Initializes the heap as global.
+    ///
+    /// See [`Self::init`] for the general documentation.
+    ///
+    /// # Safety
+    /// - All safety documentation of [`Self::init`] is met.
+    /// - This `EspHeap` is set as the [`global_allocator`].
+    pub unsafe fn init_global(&self, heap_bottom: *mut u8, size: usize) {
+        self.init_inner(heap_bottom, size, true);
+    }
+
+    unsafe fn init_inner(&self, heap_bottom: *mut u8, size: usize, is_global: bool) {
+        critical_section::with(|cs| {
+            let mut inner = self.0.borrow_ref_mut(cs);
+            unsafe { inner.heap.init(heap_bottom, size) };
+            inner.is_global = is_global;
+        })
+    }
+
+    /// Returns if this EspHeap was initialised with [`Self::init_global`].
+    ///
+    /// This means that all allocation and deallocation requests are guaranteed to be made via the standard `alloc` library will be made via this `EspHeap`.
+    pub fn is_global(&self) -> bool {
+        critical_section::with(|cs| self.0.borrow_ref_mut(cs).is_global)
     }
 
     /// Returns an estimate of the amount of bytes in use.
     pub fn used(&self) -> usize {
-        critical_section::with(|cs| self.heap.borrow(cs).borrow_mut().used())
+        critical_section::with(|cs| self.0.borrow_ref_mut(cs).heap.used())
     }
 
     /// Returns an estimate of the amount of bytes available.
     pub fn free(&self) -> usize {
-        critical_section::with(|cs| self.heap.borrow(cs).borrow_mut().free())
+        critical_section::with(|cs| self.0.borrow_ref_mut(cs).heap.free())
     }
 }
 
 unsafe impl GlobalAlloc for EspHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         critical_section::with(|cs| {
-            self.heap
-                .borrow(cs)
-                .borrow_mut()
+            self.0
+                .borrow_ref_mut(cs)
+                .heap
                 .allocate_first_fit(layout)
                 .ok()
                 .map_or(ptr::null_mut(), |allocation| allocation.as_ptr())
@@ -133,9 +163,9 @@ unsafe impl GlobalAlloc for EspHeap {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         critical_section::with(|cs| {
-            self.heap
-                .borrow(cs)
-                .borrow_mut()
+            self.0
+                .borrow_ref_mut(cs)
+                .heap
                 .deallocate(NonNull::new_unchecked(ptr), layout)
         });
     }
