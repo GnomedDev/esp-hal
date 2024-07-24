@@ -894,7 +894,7 @@ pub unsafe extern "C" fn event_post(
 ///
 /// *************************************************************************
 pub unsafe extern "C" fn get_free_heap_size() -> u32 {
-    critical_section::with(|cs| crate::HEAP.borrow_ref(cs).free() as u32)
+    critical_section::with(|cs| crate::HEAP.borrow_ref(cs).unwrap().free() as u32)
 }
 
 /// **************************************************************************

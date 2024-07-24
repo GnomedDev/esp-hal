@@ -14,6 +14,7 @@ We use [toml-cfg](https://crates.io/crates/toml-cfg) for the build time configur
 You need to add a `cfg.toml` file in the root of your binary crate. When using a _Cargo Workspace_ you should put the file in the root of the workspace directory.
 
 A configuration file can look like this:
+
 ```toml
 [esp-wifi]
 rx_queue_size = 15
@@ -44,10 +45,9 @@ You can set the following settings
 |country_code|Country code. See [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/wifi.html#wi-fi-country-code)|
 |country_code_operating_class|If not 0: Operating Class table number. See [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/wifi.html#wi-fi-country-code)|
 |mtu|MTU, see [documentation](https://docs.rs/smoltcp/0.10.0/smoltcp/phy/struct.DeviceCapabilities.html#structfield.max_transmission_unit)|
-|heap_size|Size of the WiFi/BLE heap in bytes|
 |tick_rate_hz|Tick rate of the internal task scheduler in hertz.|
 |listen_interval|Interval for station to listen to beacon from AP. The unit of listen interval is one beacon interval. For example, if beacon interval is 100 ms and listen interval is 3, the interval for station to listen to beacon is 300 ms|
-|beacon_timeout|For Station, If the station does not receive a beacon frame from the connected SoftAP during the  inactive time, disconnect from SoftAP. Default 6s. Range 6-30|
+|beacon_timeout|For Station, If the station does not receive a beacon frame from the connected SoftAP during the inactive time, disconnect from SoftAP. Default 6s. Range 6-30|
 |ap_beacon_timeout|For SoftAP, If the SoftAP doesn’t receive any data from the connected STA during inactive time, the SoftAP will force deauth the STA. Default is 300s.|
 |failure_retry_cnt|Number of connection retries station will do before moving to next AP. scan_method should be set as WIFI_ALL_CHANNEL_SCAN to use this config. Note: Enabling this may cause connection time to increase incase best AP doesn't behave properly. Defaults to 1|
 |scan_method|0 = WIFI_FAST_SCAN, 1 = WIFI_ALL_CHANNEL_SCAN, defaults to 0|

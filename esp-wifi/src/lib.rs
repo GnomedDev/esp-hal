@@ -9,17 +9,19 @@
 #![allow(unknown_lints)]
 #![allow(non_local_definitions)]
 
+extern crate alloc;
+
 // MUST be the first module
 mod fmt;
 
-use core::{cell::RefCell, mem::MaybeUninit, ptr::addr_of_mut};
+use core::cell::RefCell;
 
 use common_adapter::{chip_specific::phy_mem_init, init_radio_clock_control, RADIO_CLOCKS};
 use critical_section::Mutex;
+use esp_alloc::EspHeap;
 use esp_hal as hal;
 use fugit::MegahertzU32;
 use hal::{clock::Clocks, system::RadioClockController};
-use linked_list_allocator::Heap;
 #[cfg(feature = "wifi")]
 use wifi::WifiError;
 
@@ -100,8 +102,6 @@ struct Config {
     country_code_operating_class: u8,
     #[default(1492)]
     mtu: usize,
-    #[default(65536)]
-    heap_size: usize,
     #[default(DEFAULT_TICK_RATE_HZ)]
     tick_rate_hz: u32,
     #[default(3)]
@@ -128,18 +128,10 @@ const _: () = {
     core::assert!(CONFIG.rx_ba_win < (CONFIG.static_rx_buf_num * 2), "WiFi configuration check: rx_ba_win should not be larger than double of the static_rx_buf_num!");
 };
 
-const HEAP_SIZE: usize = crate::CONFIG.heap_size;
+pub(crate) static HEAP: Mutex<RefCell<Option<&'static EspHeap>>> = Mutex::new(RefCell::new(None));
 
-#[cfg_attr(esp32, link_section = ".dram2_uninit")]
-static mut HEAP_DATA: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-
-pub(crate) static HEAP: Mutex<RefCell<Heap>> = Mutex::new(RefCell::new(Heap::empty()));
-
-fn init_heap() {
-    critical_section::with(|cs| {
-        HEAP.borrow_ref_mut(cs)
-            .init_from_slice(unsafe { &mut *addr_of_mut!(HEAP_DATA) as &mut [MaybeUninit<u8>] })
-    });
+fn init_heap(heap: &'static EspHeap) {
+    critical_section::with(|cs| *HEAP.borrow_ref_mut(cs) = Some(heap))
 }
 
 pub(crate) type EspWifiTimer = crate::timer::TimeBase;
@@ -222,6 +214,7 @@ pub fn initialize(
     rng: hal::rng::Rng,
     radio_clocks: hal::peripherals::RADIO_CLK,
     clocks: &Clocks,
+    heap: &'static EspHeap,
 ) -> Result<EspWifiInitialization, InitializationError> {
     // A minimum clock of 80MHz is required to operate WiFi module.
     const MIN_CLOCK: u32 = 80;
@@ -233,7 +226,7 @@ pub fn initialize(
 
     crate::common_adapter::chip_specific::enable_wifi_power_domain();
 
-    init_heap();
+    init_heap(heap);
     phy_mem_init();
     init_radio_clock_control(radio_clocks);
     init_rng(rng);
