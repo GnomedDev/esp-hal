@@ -13,6 +13,8 @@ macro_rules! heap_allocator {
         unsafe {
             ALLOCATOR.init_global(HEAP.as_mut_ptr() as *mut u8, $size);
         }
+
+        &ALLOCATOR
     }};
 }
 
