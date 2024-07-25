@@ -14,10 +14,7 @@ extern crate alloc;
 // MUST be the first module
 mod fmt;
 
-use core::cell::RefCell;
-
 use common_adapter::{chip_specific::phy_mem_init, init_radio_clock_control, RADIO_CLOCKS};
-use critical_section::Mutex;
 use esp_alloc::EspHeap;
 use esp_hal as hal;
 use fugit::MegahertzU32;
@@ -128,10 +125,15 @@ const _: () = {
     core::assert!(CONFIG.rx_ba_win < (CONFIG.static_rx_buf_num * 2), "WiFi configuration check: rx_ba_win should not be larger than double of the static_rx_buf_num!");
 };
 
-pub(crate) static HEAP: Mutex<RefCell<Option<&'static EspHeap>>> = Mutex::new(RefCell::new(None));
+pub(crate) static mut HEAP: Option<&'static EspHeap> = None;
 
 fn init_heap(heap: &'static EspHeap) {
-    critical_section::with(|cs| *HEAP.borrow_ref_mut(cs) = Some(heap))
+    assert!(
+        heap.is_global(),
+        "Heap passed to `esp_wifi::initialise` must be set as global allocator!"
+    );
+
+    unsafe { *core::ptr::addr_of_mut!(HEAP) = Some(heap) }
 }
 
 pub(crate) type EspWifiTimer = crate::timer::TimeBase;
